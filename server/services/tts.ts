@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -9,6 +10,7 @@ interface SynthesizeInput {
   character1: Character;
   character2: Character;
   preset?: 'fast' | 'natural' | 'cinematic';
+  ttsOptions?: TtsOptions;
 }
 
 const PIPER_BIN = process.env.PIPER_BIN || 'piper';
@@ -19,6 +21,10 @@ const PIPER_VOICE_FABER_MODEL =
   process.env.PIPER_VOICE_FABER_MODEL || join(PIPER_VOICES_DIR, 'pt_BR-faber-medium.onnx');
 const PIPER_VOICE_EDRESSON_MODEL =
   process.env.PIPER_VOICE_EDRESSON_MODEL || join(PIPER_VOICES_DIR, 'pt_BR-edresson-low.onnx');
+const PIPER_VOICE_AMY_MODEL =
+  process.env.PIPER_VOICE_AMY_MODEL || join(PIPER_VOICES_DIR, 'en_US-amy-medium.onnx');
+const PIPER_VOICE_KATHLEEN_MODEL =
+  process.env.PIPER_VOICE_KATHLEEN_MODEL || join(PIPER_VOICES_DIR, 'en_US-kathleen-low.onnx');
 
 const TTS_PRESET_CONFIG: Record<'fast' | 'natural' | 'cinematic', { pauseMs: number; lengthScale: number; noiseScale: number; noiseW: number }> = {
   fast: { pauseMs: 120, lengthScale: 0.93, noiseScale: 0.6, noiseW: 0.7 },
@@ -33,6 +39,18 @@ interface WavData {
   pcmData: Buffer;
 }
 
+interface CharacterVoiceOptions {
+  lengthScale?: number;
+  noiseScale?: number;
+  noiseW?: number;
+}
+
+export interface TtsOptions {
+  pauseMs?: number;
+  character1?: CharacterVoiceOptions;
+  character2?: CharacterVoiceOptions;
+}
+
 function sanitizeLine(line: DialogueLine): string {
   const raw = typeof line.text === 'string' ? line.text.trim() : '';
   return raw.replace(/\s+/g, ' ').replace(/\[(.*?)\]|\((.*?)\)/g, '').trim();
@@ -40,8 +58,10 @@ function sanitizeLine(line: DialogueLine): string {
 
 function getCharacterModel(character: Character): string {
   const voice = String(character.voice || '').toLowerCase();
-  if (voice.includes('edresson')) return PIPER_VOICE_EDRESSON_MODEL;
-  if (voice.includes('faber')) return PIPER_VOICE_FABER_MODEL;
+  if (voice.includes('kathleen') && existsSync(PIPER_VOICE_KATHLEEN_MODEL)) return PIPER_VOICE_KATHLEEN_MODEL;
+  if (voice.includes('amy') && existsSync(PIPER_VOICE_AMY_MODEL)) return PIPER_VOICE_AMY_MODEL;
+  if (voice.includes('edresson') && existsSync(PIPER_VOICE_EDRESSON_MODEL)) return PIPER_VOICE_EDRESSON_MODEL;
+  if (voice.includes('faber') && existsSync(PIPER_VOICE_FABER_MODEL)) return PIPER_VOICE_FABER_MODEL;
   return PIPER_VOICE_DEFAULT_MODEL;
 }
 
@@ -49,9 +69,8 @@ function runPiperToWav(
   text: string,
   modelPath: string,
   outFile: string,
-  preset: 'fast' | 'natural' | 'cinematic'
+  config: { lengthScale: number; noiseScale: number; noiseW: number }
 ): Promise<void> {
-  const config = TTS_PRESET_CONFIG[preset];
   return new Promise((resolve, reject) => {
     const child = spawn(
       PIPER_BIN,
@@ -89,6 +108,22 @@ function runPiperToWav(
       reject(new Error(`Falha no Piper (codigo ${code}). ${stderr.trim()}`));
     });
   });
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function mergeVoiceConfig(
+  preset: 'fast' | 'natural' | 'cinematic',
+  options?: CharacterVoiceOptions
+): { lengthScale: number; noiseScale: number; noiseW: number } {
+  const base = TTS_PRESET_CONFIG[preset];
+  return {
+    lengthScale: clamp(Number(options?.lengthScale ?? base.lengthScale), 0.7, 1.4),
+    noiseScale: clamp(Number(options?.noiseScale ?? base.noiseScale), 0.1, 1.6),
+    noiseW: clamp(Number(options?.noiseW ?? base.noiseW), 0.1, 1.6),
+  };
 }
 
 function readWavData(buffer: Buffer): WavData {
@@ -134,6 +169,7 @@ export async function synthesizeDialogueWav({
   character1,
   character2,
   preset = 'natural',
+  ttsOptions,
 }: SynthesizeInput): Promise<Buffer> {
   const lines = script
     .map((line) => ({ ...line, text: sanitizeLine(line) }))
@@ -145,6 +181,9 @@ export async function synthesizeDialogueWav({
 
   const tempDir = await mkdtemp(join(tmpdir(), 'vozes-em-cena-'));
   const config = TTS_PRESET_CONFIG[preset];
+  const pauseMs = clamp(Number(ttsOptions?.pauseMs ?? config.pauseMs), 80, 700);
+  const voiceConfig1 = mergeVoiceConfig(preset, ttsOptions?.character1);
+  const voiceConfig2 = mergeVoiceConfig(preset, ttsOptions?.character2);
   const parts: Buffer[] = [];
   let audioFormat: Pick<WavData, 'sampleRate' | 'channels' | 'bitsPerSample'> | null = null;
   const baseModelPath = getCharacterModel(character1);
@@ -154,8 +193,9 @@ export async function synthesizeDialogueWav({
       const line = lines[index];
       const speaker = line.characterName === character2.name ? character2 : character1;
       const modelPath = getCharacterModel(speaker);
+      const voiceConfig = line.characterName === character2.name ? voiceConfig2 : voiceConfig1;
       const partPath = join(tempDir, `line-${index}.wav`);
-      await runPiperToWav(line.text, modelPath, partPath, preset);
+      await runPiperToWav(line.text, modelPath, partPath, voiceConfig);
       const wavData = readWavData(await readFile(partPath));
 
       if (!audioFormat) {
@@ -168,7 +208,7 @@ export async function synthesizeDialogueWav({
         if (mismatch) {
           // Fallback automatico para evitar quebrar a geracao
           // quando as vozes usam formatos diferentes.
-          await runPiperToWav(line.text, baseModelPath, partPath, preset);
+          await runPiperToWav(line.text, baseModelPath, partPath, voiceConfig1);
           const fallbackWavData = readWavData(await readFile(partPath));
           const fallbackMismatch =
             audioFormat.sampleRate !== fallbackWavData.sampleRate ||
@@ -186,7 +226,7 @@ export async function synthesizeDialogueWav({
                 fallbackWavData.sampleRate,
                 fallbackWavData.channels,
                 fallbackWavData.bitsPerSample,
-                config.pauseMs
+                pauseMs
               )
             );
           }
@@ -197,7 +237,7 @@ export async function synthesizeDialogueWav({
       parts.push(wavData.pcmData);
       if (index < lines.length - 1) {
         parts.push(
-          createSilence(wavData.sampleRate, wavData.channels, wavData.bitsPerSample, config.pauseMs)
+          createSilence(wavData.sampleRate, wavData.channels, wavData.bitsPerSample, pauseMs)
         );
       }
     }

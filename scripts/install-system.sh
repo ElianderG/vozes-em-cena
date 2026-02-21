@@ -6,10 +6,16 @@ MODEL_NAME="${OLLAMA_MODEL:-llama3.1:8b-instruct-q4_K_M}"
 PIPER_VOICES_DIR="${PIPER_VOICES_DIR:-./models/piper}"
 PIPER_VOICE_FABER_MODEL="${PIPER_VOICE_FABER_MODEL:-./models/piper/pt_BR-faber-medium.onnx}"
 PIPER_VOICE_EDRESSON_MODEL="${PIPER_VOICE_EDRESSON_MODEL:-./models/piper/pt_BR-edresson-low.onnx}"
+PIPER_VOICE_AMY_MODEL="${PIPER_VOICE_AMY_MODEL:-./models/piper/en_US-amy-medium.onnx}"
+PIPER_VOICE_KATHLEEN_MODEL="${PIPER_VOICE_KATHLEEN_MODEL:-./models/piper/en_US-kathleen-low.onnx}"
 PIPER_FABER_URL="${PIPER_FABER_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx}"
 PIPER_FABER_JSON_URL="${PIPER_FABER_JSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json}"
 PIPER_EDRESSON_URL="${PIPER_EDRESSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/edresson/low/pt_BR-edresson-low.onnx}"
 PIPER_EDRESSON_JSON_URL="${PIPER_EDRESSON_JSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/edresson/low/pt_BR-edresson-low.onnx.json}"
+PIPER_AMY_URL="${PIPER_AMY_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx}"
+PIPER_AMY_JSON_URL="${PIPER_AMY_JSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json}"
+PIPER_KATHLEEN_URL="${PIPER_KATHLEEN_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/kathleen/low/en_US-kathleen-low.onnx}"
+PIPER_KATHLEEN_JSON_URL="${PIPER_KATHLEEN_JSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/kathleen/low/en_US-kathleen-low.onnx.json}"
 PIPER_DOWNLOAD_URL="${PIPER_DOWNLOAD_URL:-https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz}"
 PIPER_INSTALL_DIR="${PIPER_INSTALL_DIR:-/opt/piper}"
 
@@ -200,6 +206,19 @@ download_if_missing() {
   curl -fL "${url}" -o "${output_file}"
 }
 
+download_if_missing_optional() {
+  local url="$1"
+  local output_file="$2"
+  if [ -f "${output_file}" ]; then
+    return
+  fi
+  log "Tentando baixar voz extra: $(basename "${output_file}")"
+  if ! curl -fL "${url}" -o "${output_file}"; then
+    echo "Aviso: nao foi possivel baixar ${url}. Seguindo sem essa voz extra."
+    rm -f "${output_file}"
+  fi
+}
+
 install_piper_voices() {
   local voices_dir
   voices_dir="$(resolve_project_path "${PIPER_VOICES_DIR}")"
@@ -207,13 +226,21 @@ install_piper_voices() {
 
   local faber_model
   local edresson_model
+  local amy_model
+  local kathleen_model
   faber_model="$(resolve_project_path "${PIPER_VOICE_FABER_MODEL}")"
   edresson_model="$(resolve_project_path "${PIPER_VOICE_EDRESSON_MODEL}")"
+  amy_model="$(resolve_project_path "${PIPER_VOICE_AMY_MODEL}")"
+  kathleen_model="$(resolve_project_path "${PIPER_VOICE_KATHLEEN_MODEL}")"
 
   download_if_missing "${PIPER_FABER_URL}" "${faber_model}"
   download_if_missing "${PIPER_FABER_JSON_URL}" "${faber_model}.json"
   download_if_missing "${PIPER_EDRESSON_URL}" "${edresson_model}"
   download_if_missing "${PIPER_EDRESSON_JSON_URL}" "${edresson_model}.json"
+  download_if_missing_optional "${PIPER_AMY_URL}" "${amy_model}"
+  download_if_missing_optional "${PIPER_AMY_JSON_URL}" "${amy_model}.json"
+  download_if_missing_optional "${PIPER_KATHLEEN_URL}" "${kathleen_model}"
+  download_if_missing_optional "${PIPER_KATHLEEN_JSON_URL}" "${kathleen_model}.json"
 }
 
 install_project_dependencies() {

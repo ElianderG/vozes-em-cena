@@ -21,7 +21,7 @@ import {
   Moon
 } from 'lucide-react';
 
-const VOICES = ['Faber', 'Edresson'];
+const VOICES = ['Faber', 'Edresson', 'Amy', 'Kathleen'];
 type GenerationPreset = 'fast' | 'natural' | 'cinematic';
 
 interface Character {
@@ -34,6 +34,23 @@ interface Character {
 interface DialogueLine {
   characterName: string;
   text: string;
+}
+
+const INITIAL_DIALOGUE: DialogueLine[] = [
+  { characterName: 'Personagem 1', text: 'Oi! Tudo certo por ai?' },
+  { characterName: 'Personagem 2', text: 'Tudo sim! Vamos começar a dublagem?' },
+];
+
+interface CharacterVoiceTuning {
+  lengthScale: number;
+  noiseScale: number;
+  noiseW: number;
+}
+
+interface VoiceNuanceConfig {
+  pauseMs: number;
+  character1: CharacterVoiceTuning;
+  character2: CharacterVoiceTuning;
 }
 
 export default function App() {
@@ -49,18 +66,23 @@ export default function App() {
 
   const [character2, setCharacter2] = useState<Character>({
     name: 'Personagem 2',
-    voice: 'Edresson',
+    voice: 'Amy',
     accent: 'Paulista',
     emotion: 'Entusiasmado'
   });
 
   const [prompt, setPrompt] = useState('');
-  const [script, setScript] = useState<DialogueLine[]>([]);
+  const [script, setScript] = useState<DialogueLine[]>(INITIAL_DIALOGUE);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [statusLog, setStatusLog] = useState<string>('');
+  const [voiceNuance, setVoiceNuance] = useState<VoiceNuanceConfig>({
+    pauseMs: 220,
+    character1: { lengthScale: 1.0, noiseScale: 0.72, noiseW: 0.8 },
+    character2: { lengthScale: 1.0, noiseScale: 0.72, noiseW: 0.8 },
+  });
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const scriptAbortControllerRef = useRef<AbortController | null>(null);
@@ -146,6 +168,7 @@ export default function App() {
           character1,
           character2,
           preset,
+          ttsOptions: voiceNuance,
         }),
       });
       if (!response.ok) {
@@ -204,10 +227,10 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen bg-[#f5f5f5] text-slate-900 font-sans p-4 md:p-8 ${isDarkMode ? 'dark-theme' : ''}`}>
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className={`min-h-screen bg-[#f5f5f5] text-slate-900 font-sans p-3 md:p-4 ${isDarkMode ? 'dark-theme' : ''}`}>
+      <div className="max-w-7xl mx-auto space-y-4">
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-slate-200 pb-6">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-200">
               <Mic2 className="text-white w-6 h-6" />
@@ -239,15 +262,15 @@ export default function App() {
           </div>
         </header>
 
-        <main className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <main className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
           {/* Left Column: Configuration */}
-          <div className="lg:col-span-4 space-y-6">
-            <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 mb-6 text-indigo-600">
+          <div className="xl:col-span-5 space-y-4 xl:sticky xl:top-3">
+            <section className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 max-h-[calc(100vh-1.75rem)] overflow-y-auto custom-scrollbar">
+              <div className="flex items-center gap-2 mb-4 text-indigo-600">
                 <Settings2 className="w-5 h-5" />
                 <h2 className="font-semibold">Configuração de Voz</h2>
               </div>
-              <div className="mb-6">
+              <div className="mb-4">
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
                   Preset de Geracao
                 </label>
@@ -262,8 +285,136 @@ export default function App() {
                 </select>
               </div>
 
+              <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nuances da Voz</p>
+                <label className="block text-xs text-slate-600">
+                  Pausa entre falas: <span className="font-semibold">{voiceNuance.pauseMs}ms</span>
+                  <input
+                    type="range"
+                    min={80}
+                    max={700}
+                    step={10}
+                    value={voiceNuance.pauseMs}
+                    onChange={(e) =>
+                      setVoiceNuance((current) => ({ ...current, pauseMs: Number(e.target.value) }))
+                    }
+                    className="w-full mt-2"
+                  />
+                </label>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2">
+                    <p className="text-[11px] font-semibold text-slate-600">{character1.name || 'Personagem 1'}</p>
+                    <label className="block text-xs text-slate-600">
+                      Ritmo: <span className="font-semibold">{voiceNuance.character1.lengthScale.toFixed(2)}</span>
+                      <input
+                        type="range"
+                        min={0.8}
+                        max={1.3}
+                        step={0.01}
+                        value={voiceNuance.character1.lengthScale}
+                        onChange={(e) =>
+                          setVoiceNuance((current) => ({
+                            ...current,
+                            character1: { ...current.character1, lengthScale: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full mt-1"
+                      />
+                    </label>
+                    <label className="block text-xs text-slate-600">
+                      Expressividade: <span className="font-semibold">{voiceNuance.character1.noiseScale.toFixed(2)}</span>
+                      <input
+                        type="range"
+                        min={0.3}
+                        max={1.4}
+                        step={0.01}
+                        value={voiceNuance.character1.noiseScale}
+                        onChange={(e) =>
+                          setVoiceNuance((current) => ({
+                            ...current,
+                            character1: { ...current.character1, noiseScale: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full mt-1"
+                      />
+                    </label>
+                    <label className="block text-xs text-slate-600">
+                      Variacao: <span className="font-semibold">{voiceNuance.character1.noiseW.toFixed(2)}</span>
+                      <input
+                        type="range"
+                        min={0.3}
+                        max={1.4}
+                        step={0.01}
+                        value={voiceNuance.character1.noiseW}
+                        onChange={(e) =>
+                          setVoiceNuance((current) => ({
+                            ...current,
+                            character1: { ...current.character1, noiseW: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full mt-1"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2">
+                    <p className="text-[11px] font-semibold text-slate-600">{character2.name || 'Personagem 2'}</p>
+                    <label className="block text-xs text-slate-600">
+                      Ritmo: <span className="font-semibold">{voiceNuance.character2.lengthScale.toFixed(2)}</span>
+                      <input
+                        type="range"
+                        min={0.8}
+                        max={1.3}
+                        step={0.01}
+                        value={voiceNuance.character2.lengthScale}
+                        onChange={(e) =>
+                          setVoiceNuance((current) => ({
+                            ...current,
+                            character2: { ...current.character2, lengthScale: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full mt-1"
+                      />
+                    </label>
+                    <label className="block text-xs text-slate-600">
+                      Expressividade: <span className="font-semibold">{voiceNuance.character2.noiseScale.toFixed(2)}</span>
+                      <input
+                        type="range"
+                        min={0.3}
+                        max={1.4}
+                        step={0.01}
+                        value={voiceNuance.character2.noiseScale}
+                        onChange={(e) =>
+                          setVoiceNuance((current) => ({
+                            ...current,
+                            character2: { ...current.character2, noiseScale: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full mt-1"
+                      />
+                    </label>
+                    <label className="block text-xs text-slate-600">
+                      Variacao: <span className="font-semibold">{voiceNuance.character2.noiseW.toFixed(2)}</span>
+                      <input
+                        type="range"
+                        min={0.3}
+                        max={1.4}
+                        step={0.01}
+                        value={voiceNuance.character2.noiseW}
+                        onChange={(e) =>
+                          setVoiceNuance((current) => ({
+                            ...current,
+                            character2: { ...current.character2, noiseW: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full mt-1"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               {/* Character 1 */}
-              <div className="space-y-4 mb-8">
+              <div className="space-y-3 mb-5">
                 <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                   <User className="w-4 h-4" />
                   <span>{character1.name}</span>
@@ -302,7 +453,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100 my-6" />
+              <div className="h-px bg-slate-100 my-4" />
 
               {/* Character 2 */}
               <div className="space-y-4">
@@ -347,10 +498,10 @@ export default function App() {
           </div>
 
           {/* Right Column: Script & Generation */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="xl:col-span-7 space-y-4">
             {/* Prompt Area */}
-            <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-              <div className="flex items-center justify-between mb-4">
+            <section className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-indigo-600">
                   <Sparkles className="w-5 h-5" />
                   <h2 className="font-semibold">Gerar Roteiro</h2>
@@ -361,17 +512,17 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-col md:flex-row gap-2">
                 <textarea 
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Ex: Uma discussão sobre quem deixou a louça suja..."
-                  className="flex-1 min-h-[80px] p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
+                  className="flex-1 min-h-[72px] p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
                 />
                 <button 
                   onClick={generateScript}
                   disabled={isGeneratingScript || !prompt.trim()}
-                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white px-6 rounded-xl font-medium transition-all flex flex-col items-center justify-center gap-2 min-w-[120px]"
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white px-4 py-3 rounded-xl font-medium transition-all flex flex-col items-center justify-center gap-2 min-w-[110px]"
                 >
                   {isGeneratingScript ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -385,7 +536,7 @@ export default function App() {
                 {isGeneratingScript && (
                   <button
                     onClick={cancelScriptGeneration}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 rounded-xl font-medium transition-all min-w-[90px]"
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-medium transition-all min-w-[90px]"
                   >
                     Cancelar
                   </button>
@@ -394,8 +545,8 @@ export default function App() {
             </section>
 
             {/* Script Editor */}
-            <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 min-h-[400px] flex flex-col">
-              <div className="flex items-center justify-between mb-6">
+            <section className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 min-h-[330px] flex flex-col">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-indigo-600">
                   <MessageSquare className="w-5 h-5" />
                   <h2 className="font-semibold">Diálogo</h2>
@@ -408,7 +559,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+              <div className="flex-1 space-y-3 overflow-y-auto max-h-[420px] pr-1 custom-scrollbar">
                 {script.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 py-12">
                     <MessageSquare className="w-12 h-12 opacity-20" />
@@ -416,8 +567,8 @@ export default function App() {
                   </div>
                 ) : (
                   script.map((line, index) => (
-                    <div key={index} className="group relative bg-slate-50 rounded-xl p-4 border border-slate-100 hover:border-indigo-200 transition-all">
-                      <div className="flex items-center gap-3 mb-2">
+                    <div key={index} className="group relative bg-slate-50 rounded-xl p-3 border border-slate-100 hover:border-indigo-200 transition-all">
+                      <div className="flex items-center gap-2 mb-2">
                         <select 
                           value={line.characterName}
                           onChange={(e) => handleLineChange(index, 'characterName', e.target.value)}
@@ -428,7 +579,7 @@ export default function App() {
                         </select>
                         <button 
                           onClick={() => removeLine(index)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all absolute top-4 right-4"
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all absolute top-3 right-3"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -445,7 +596,7 @@ export default function App() {
               </div>
 
               {/* Action Footer */}
-              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-4">
                   {audioUrl && (
                     <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full">
@@ -472,10 +623,10 @@ export default function App() {
                 </div>
 
                 <div className="flex gap-3">
-                  <button 
+                  <button
                     onClick={generateAudio}
                     disabled={isGeneratingAudio || script.length === 0}
-                    className="flex items-center gap-2 bg-slate-900 hover:bg-black disabled:bg-slate-300 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-slate-200"
+                    className="flex items-center gap-2 bg-slate-900 hover:bg-black disabled:bg-slate-300 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-slate-200"
                   >
                     {isGeneratingAudio ? (
                       <>
@@ -512,7 +663,7 @@ export default function App() {
           </div>
         </main>
 
-        <footer className="text-center text-slate-400 text-xs py-8">
+        <footer className="text-center text-slate-400 text-xs py-4">
           <p>© 2026 Vozes em Cena • IA Local</p>
         </footer>
       </div>

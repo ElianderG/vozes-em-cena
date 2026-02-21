@@ -1,6 +1,6 @@
 import express from 'express';
 import { generateDialogueScript, type Character, type DialogueLine, type GenerationPreset } from './services/ollama';
-import { synthesizeDialogueWav } from './services/tts';
+import { synthesizeDialogueWav, type TtsOptions } from './services/tts';
 
 const app = express();
 const PORT = Number(process.env.API_PORT || 8787);
@@ -34,11 +34,12 @@ app.post('/api/script', async (req, res) => {
 
 app.post('/api/dub', async (req, res) => {
   try {
-    const { script, character1, character2, preset } = req.body as {
+    const { script, character1, character2, preset, ttsOptions } = req.body as {
       script?: DialogueLine[];
       character1?: Character;
       character2?: Character;
       preset?: GenerationPreset;
+      ttsOptions?: TtsOptions;
     };
 
     if (!Array.isArray(script) || script.length === 0) {
@@ -48,7 +49,7 @@ app.post('/api/dub', async (req, res) => {
       return res.status(400).json({ error: 'Personagens invalidos para dublagem.' });
     }
 
-    const wavBuffer = await synthesizeDialogueWav({ script, character1, character2, preset });
+    const wavBuffer = await synthesizeDialogueWav({ script, character1, character2, preset, ttsOptions });
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Content-Disposition', 'inline; filename="dublagem.wav"');
     return res.send(wavBuffer);

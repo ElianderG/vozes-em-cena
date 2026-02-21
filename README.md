@@ -55,6 +55,8 @@ Cada preset atua em todo o pipeline:
 
 - `Faber`: voz recomendada para personagem 1.
 - `Edresson`: voz recomendada para personagem 2.
+- `Amy`: opcao feminina adicional.
+- `Kathleen`: opcao feminina adicional.
 
 As vozes podem ser personalizadas via variaveis `PIPER_*` no `.env.local`.
 
