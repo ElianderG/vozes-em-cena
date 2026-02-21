@@ -10,14 +10,49 @@ export interface DialogueLine {
   text: string;
 }
 
+export type GenerationPreset = 'fast' | 'natural' | 'cinematic';
+
 interface GenerateDialogueInput {
   prompt: string;
   character1: Character;
   character2: Character;
+  preset?: GenerationPreset;
 }
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b-instruct-q4_K_M';
+
+function readNumberEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+const PRESET_CONFIG: Record<
+  GenerationPreset,
+  { model: string; temperature: number; topP: number; repeatPenalty: number; numPredict: number }
+> = {
+  fast: {
+    model: process.env.OLLAMA_MODEL_FAST || OLLAMA_MODEL,
+    temperature: readNumberEnv('OLLAMA_TEMPERATURE_FAST', 0.55),
+    topP: readNumberEnv('OLLAMA_TOP_P_FAST', 0.85),
+    repeatPenalty: readNumberEnv('OLLAMA_REPEAT_PENALTY_FAST', 1.08),
+    numPredict: readNumberEnv('OLLAMA_NUM_PREDICT_FAST', 220),
+  },
+  natural: {
+    model: process.env.OLLAMA_MODEL_NATURAL || OLLAMA_MODEL,
+    temperature: readNumberEnv('OLLAMA_TEMPERATURE_NATURAL', 0.82),
+    topP: readNumberEnv('OLLAMA_TOP_P_NATURAL', 0.92),
+    repeatPenalty: readNumberEnv('OLLAMA_REPEAT_PENALTY_NATURAL', 1.12),
+    numPredict: readNumberEnv('OLLAMA_NUM_PREDICT_NATURAL', 320),
+  },
+  cinematic: {
+    model: process.env.OLLAMA_MODEL_CINEMATIC || OLLAMA_MODEL,
+    temperature: readNumberEnv('OLLAMA_TEMPERATURE_CINEMATIC', 0.95),
+    topP: readNumberEnv('OLLAMA_TOP_P_CINEMATIC', 0.95),
+    repeatPenalty: readNumberEnv('OLLAMA_REPEAT_PENALTY_CINEMATIC', 1.16),
+    numPredict: readNumberEnv('OLLAMA_NUM_PREDICT_CINEMATIC', 420),
+  },
+};
 
 function fallbackDialogue(input: GenerateDialogueInput): DialogueLine[] {
   return [
@@ -69,24 +104,44 @@ function normalizeScript(
       const text = typeof line.text === 'string' ? line.text.trim() : '';
       return { characterName, text };
     })
+    .map((line) => ({
+      characterName: line.characterName,
+      text: line.text
+        .replace(/\[(.*?)\]|\((.*?)\)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    }))
+    .filter((line, index, lines) => line.text && line.text !== lines[index - 1]?.text)
+    .map((line) => ({
+      characterName: line.characterName,
+      text: line.text.length > 180 ? `${line.text.slice(0, 177).trimEnd()}...` : line.text,
+    }))
     .filter((line) => line.text.length > 0);
 
   return cleaned.length > 0 ? cleaned : null;
 }
 
 export async function generateDialogueScript(input: GenerateDialogueInput): Promise<DialogueLine[]> {
+  const preset = input.preset || 'natural';
+  const presetConfig = PRESET_CONFIG[preset];
   const prompt = `
-Voce e um roteirista. Responda APENAS com JSON valido.
-Gere um dialogo curto de no maximo 6 falas entre "${input.character1.name}" e "${input.character2.name}".
+Voce escreve dialogos conversacionais naturais para dublagem.
+Retorne APENAS um JSON valido.
+
+Objetivo:
+- Criar um dialogo curto e fluido (4 a 6 falas) entre "${input.character1.name}" e "${input.character2.name}".
+- Soar como fala real: frases curtas, ritmo oral, variacao emocional.
 
 Contexto:
 ${input.prompt}
 
 Regras:
-- Use somente os nomes "${input.character1.name}" e "${input.character2.name}" no campo characterName.
+- Use somente os nomes "${input.character1.name}" e "${input.character2.name}" em "characterName".
 - ${input.character1.name}: sotaque ${input.character1.accent}, emocao ${input.character1.emotion}.
 - ${input.character2.name}: sotaque ${input.character2.accent}, emocao ${input.character2.emotion}.
-- Nao use markdown e nao inclua texto fora do JSON.
+- Cada fala deve ser curta (idealmente 6 a 16 palavras).
+- Evite frases formais demais, exposicao longa e repeticoes.
+- Nao use markdown, narracao de palco ou texto fora do JSON.
 
 Formato obrigatorio:
 [
@@ -99,10 +154,16 @@ Formato obrigatorio:
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: OLLAMA_MODEL,
+      model: presetConfig.model,
       prompt,
       stream: false,
       format: 'json',
+      options: {
+        temperature: presetConfig.temperature,
+        top_p: presetConfig.topP,
+        repeat_penalty: presetConfig.repeatPenalty,
+        num_predict: presetConfig.numPredict,
+      },
     }),
   });
 

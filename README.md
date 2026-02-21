@@ -8,7 +8,7 @@ Aplicativo para criar roteiro e gerar dublagem entre dois personagens com IA loc
 - Node.js 20+
 - Yarn 1.x
 - Ollama instalado localmente
-- eSpeak instalado localmente (TTS)
+- Piper instalado localmente (TTS neural)
 
 ### Instalação
 1. Instale dependencias:
@@ -19,7 +19,7 @@ Aplicativo para criar roteiro e gerar dublagem entre dois personagens com IA loc
    `yarn dev`
 
 ### Instalacao automatica (script unico)
-Para provisionar o sistema completo (Ollama + modelo + eSpeak + dependencias do projeto):
+Para provisionar o sistema completo (Ollama + modelo + Piper + vozes + dependencias do projeto):
 
 `bash scripts/install-system.sh`
 
@@ -33,19 +33,37 @@ Baixe ao menos um modelo no Ollama:
 ## Uso
 
 1. Abra o app em `http://localhost:3050`.
-2. Configure os dois personagens (nome, sotaque, emocao).
-3. Digite o contexto no campo de prompt.
-4. Clique em **Gerar Texto** para criar o roteiro.
-5. Revise/edite o dialogo.
-6. Clique em **Gerar Dublagem** para obter o WAV.
-7. Use o botao de download para salvar o audio.
+2. Selecione um preset (`Rapido`, `Natural` ou `Cinematico`).
+3. Configure os dois personagens (nome, voz, sotaque, emocao).
+4. Digite o contexto no campo de prompt.
+5. Clique em **Gerar Texto** para criar o roteiro.
+6. Revise/edite o dialogo.
+7. Clique em **Gerar Dublagem** para obter o WAV.
+8. Use o botao de download para salvar o audio.
+
+## Presets
+
+- `Rapido`: menor latencia, respostas mais objetivas.
+- `Natural`: equilibrio entre naturalidade e velocidade.
+- `Cinematico`: maior expressividade, com pausas mais longas e roteiro mais elaborado.
+
+Cada preset atua em todo o pipeline:
+- texto no Ollama (modelo + parametros);
+- voz no Piper (ritmo, pausa e expressividade).
+
+## Vozes Piper
+
+- `Faber`: voz recomendada para personagem 1.
+- `Edresson`: voz recomendada para personagem 2.
+
+As vozes podem ser personalizadas via variaveis `PIPER_*` no `.env.local`.
 
 ## Arquitetura
 
 - Frontend React + Vite consome endpoints locais em `/api/*`.
 - API local (Express) faz:
-  - `POST /api/script` -> chama Ollama para gerar roteiro JSON.
-  - `POST /api/dub` -> chama eSpeak para gerar audio WAV.
+  - `POST /api/script` -> chama Ollama para gerar roteiro JSON com preset.
+  - `POST /api/dub` -> chama Piper para gerar audio WAV com voz por personagem e preset.
 - Sem dependencias de API em nuvem no fluxo principal.
 
 Detalhes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -55,9 +73,10 @@ Detalhes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Erro ao gerar roteiro (Ollama):**
   - confirme que o Ollama esta rodando: `ollama serve`
   - confirme modelo instalado: `ollama list`
-- **Erro de TTS (eSpeak):**
-  - instale eSpeak: `sudo apt install espeak`
-  - valide binario: `espeak --version`
+- **Erro de TTS (Piper):**
+  - confirme binario: `piper --version`
+  - confira modelos em `models/piper`
+  - valide variaveis `PIPER_*` no `.env.local`
 - **API local nao responde:**
   - verifique se `yarn dev:server` subiu em `http://localhost:8787`
   - cheque `API_PORT` e `LOCAL_API_URL` no `.env.local`
@@ -76,7 +95,7 @@ Detalhes: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 ## Checklist de atualizacao de docs
 
 Sempre que mudar fluxo funcional:
-- atualizar `README.md` (Setup, Uso, Arquitetura, Troubleshooting);
+- atualizar `README.md` (Setup, Uso, Presets, Arquitetura, Troubleshooting);
 - atualizar `.env.example` se variavel mudar;
 - atualizar `docs/ARCHITECTURE.md` em mudancas de fluxo;
 - atualizar `docs/TROUBLESHOOTING.md` ao corrigir erro operacional.

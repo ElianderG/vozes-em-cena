@@ -7,7 +7,7 @@ const envExamplePath = join(root, '.env.example');
 const scanDirs = [join(root, 'server'), join(root, 'src')];
 const scanFiles = [join(root, 'vite.config.ts')];
 
-const requiredReadmeSections = ['## Setup', '## Uso', '## Arquitetura', '## Troubleshooting'];
+const requiredReadmeSections = ['## Setup', '## Uso', '## Presets', '## Arquitetura', '## Troubleshooting'];
 
 function unique(values) {
   return [...new Set(values)];

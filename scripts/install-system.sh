@@ -3,6 +3,15 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODEL_NAME="${OLLAMA_MODEL:-llama3.1:8b-instruct-q4_K_M}"
+PIPER_VOICES_DIR="${PIPER_VOICES_DIR:-./models/piper}"
+PIPER_VOICE_FABER_MODEL="${PIPER_VOICE_FABER_MODEL:-./models/piper/pt_BR-faber-medium.onnx}"
+PIPER_VOICE_EDRESSON_MODEL="${PIPER_VOICE_EDRESSON_MODEL:-./models/piper/pt_BR-edresson-low.onnx}"
+PIPER_FABER_URL="${PIPER_FABER_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx}"
+PIPER_FABER_JSON_URL="${PIPER_FABER_JSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json}"
+PIPER_EDRESSON_URL="${PIPER_EDRESSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/edresson/low/pt_BR-edresson-low.onnx}"
+PIPER_EDRESSON_JSON_URL="${PIPER_EDRESSON_JSON_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR/edresson/low/pt_BR-edresson-low.onnx.json}"
+PIPER_DOWNLOAD_URL="${PIPER_DOWNLOAD_URL:-https://github.com/rhasspy/piper/releases/latest/download/piper_linux_x86_64.tar.gz}"
+PIPER_INSTALL_DIR="${PIPER_INSTALL_DIR:-/opt/piper}"
 
 log() {
   printf '\n[install-system] %s\n' "$1"
@@ -55,7 +64,7 @@ install_base_packages() {
   safe_apt_update
 
   log "Instalando pacotes base"
-  sudo apt-get install -y curl ca-certificates espeak
+  sudo apt-get install -y curl ca-certificates
 }
 
 install_node_if_missing() {
@@ -98,6 +107,51 @@ install_ollama_if_missing() {
   log "Ollama instalado: $(ollama --version)"
 }
 
+install_piper_if_missing() {
+  if command -v piper >/dev/null 2>&1; then
+    log "Piper ja instalado: $(piper --version 2>/dev/null || echo "binario disponivel")"
+    return
+  fi
+
+  log "Instalando Piper"
+  if sudo apt-get install -y piper-tts; then
+    log "Piper instalado via apt"
+    return
+  fi
+
+  log "Pacote piper-tts indisponivel no apt. Tentando fallback via release oficial"
+  install_piper_from_release
+}
+
+install_piper_from_release() {
+  local temp_dir archive_path
+  temp_dir="$(mktemp -d)"
+  archive_path="${temp_dir}/piper.tar.gz"
+
+  if ! curl -fL "${PIPER_DOWNLOAD_URL}" -o "${archive_path}"; then
+    echo "Erro: falha ao baixar Piper de ${PIPER_DOWNLOAD_URL}"
+    echo "Defina PIPER_DOWNLOAD_URL no ambiente com uma URL valida e rode novamente."
+    rm -rf "${temp_dir}"
+    exit 1
+  fi
+
+  sudo mkdir -p "${PIPER_INSTALL_DIR}"
+  sudo tar -xzf "${archive_path}" -C "${PIPER_INSTALL_DIR}" --strip-components=1
+
+  if [ -x "${PIPER_INSTALL_DIR}/piper" ]; then
+    sudo ln -sf "${PIPER_INSTALL_DIR}/piper" /usr/local/bin/piper
+  elif [ -x "${PIPER_INSTALL_DIR}/piper/piper" ]; then
+    sudo ln -sf "${PIPER_INSTALL_DIR}/piper/piper" /usr/local/bin/piper
+  else
+    echo "Erro: binario do Piper nao encontrado apos extracao em ${PIPER_INSTALL_DIR}."
+    rm -rf "${temp_dir}"
+    exit 1
+  fi
+
+  rm -rf "${temp_dir}"
+  log "Piper instalado via release oficial"
+}
+
 start_ollama_service() {
   if command -v systemctl >/dev/null 2>&1; then
     log "Habilitando e iniciando servico do Ollama"
@@ -127,6 +181,41 @@ pull_model() {
   ollama pull "${MODEL_NAME}"
 }
 
+resolve_project_path() {
+  local path="$1"
+  if [[ "${path}" = /* ]]; then
+    echo "${path}"
+    return
+  fi
+  echo "${PROJECT_ROOT}/${path#./}"
+}
+
+download_if_missing() {
+  local url="$1"
+  local output_file="$2"
+  if [ -f "${output_file}" ]; then
+    return
+  fi
+  log "Baixando arquivo: $(basename "${output_file}")"
+  curl -fL "${url}" -o "${output_file}"
+}
+
+install_piper_voices() {
+  local voices_dir
+  voices_dir="$(resolve_project_path "${PIPER_VOICES_DIR}")"
+  mkdir -p "${voices_dir}"
+
+  local faber_model
+  local edresson_model
+  faber_model="$(resolve_project_path "${PIPER_VOICE_FABER_MODEL}")"
+  edresson_model="$(resolve_project_path "${PIPER_VOICE_EDRESSON_MODEL}")"
+
+  download_if_missing "${PIPER_FABER_URL}" "${faber_model}"
+  download_if_missing "${PIPER_FABER_JSON_URL}" "${faber_model}.json"
+  download_if_missing "${PIPER_EDRESSON_URL}" "${edresson_model}"
+  download_if_missing "${PIPER_EDRESSON_JSON_URL}" "${edresson_model}.json"
+}
+
 install_project_dependencies() {
   log "Instalando dependencias do projeto com yarn"
   cd "${PROJECT_ROOT}"
@@ -150,9 +239,11 @@ main() {
   install_node_if_missing
   install_yarn_if_missing
   install_ollama_if_missing
+  install_piper_if_missing
   start_ollama_service
   wait_for_ollama
   pull_model
+  install_piper_voices
   install_project_dependencies
   ensure_env_file
 

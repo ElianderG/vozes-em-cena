@@ -20,10 +20,9 @@ import {
   Trash2,
   Moon
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 
-// Available voices for Gemini TTS
-const VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
+const VOICES = ['Faber', 'Edresson'];
+type GenerationPreset = 'fast' | 'natural' | 'cinematic';
 
 interface Character {
   name: string;
@@ -39,17 +38,18 @@ interface DialogueLine {
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<'system' | 'light' | 'dark'>('system');
+  const [preset, setPreset] = useState<GenerationPreset>('natural');
   const [systemPrefersDark, setSystemPrefersDark] = useState(false);
   const [character1, setCharacter1] = useState<Character>({
     name: 'Personagem 1',
-    voice: 'Kore',
+    voice: 'Faber',
     accent: 'Francês',
     emotion: 'Calmo'
   });
 
   const [character2, setCharacter2] = useState<Character>({
     name: 'Personagem 2',
-    voice: 'Kore',
+    voice: 'Edresson',
     accent: 'Paulista',
     emotion: 'Entusiasmado'
   });
@@ -63,6 +63,8 @@ export default function App() {
   const [statusLog, setStatusLog] = useState<string>('');
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scriptAbortControllerRef = useRef<AbortController | null>(null);
+  const audioAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -79,21 +81,27 @@ export default function App() {
   useEffect(() => {
     return () => {
       if (audioUrl) URL.revokeObjectURL(audioUrl);
+      scriptAbortControllerRef.current?.abort();
+      audioAbortControllerRef.current?.abort();
     };
   }, [audioUrl]);
 
   const generateScript = async () => {
     if (!prompt.trim()) return;
+    const controller = new AbortController();
+    scriptAbortControllerRef.current = controller;
     setIsGeneratingScript(true);
     setStatusLog('Gerando roteiro...');
     try {
       const response = await fetch('/api/script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           prompt,
           character1,
           character2,
+          preset,
         }),
       });
       if (!response.ok) {
@@ -105,17 +113,24 @@ export default function App() {
       setScript(parsedScript);
       setStatusLog('Roteiro gerado com sucesso!');
     } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        setStatusLog('Geracao de roteiro cancelada pelo usuario.');
+        return;
+      }
       console.error("Erro ao gerar roteiro:", error);
       setStatusLog(`Erro no roteiro: ${error.message}`);
       alert(`Falha ao gerar o roteiro: ${error.message}`);
     } finally {
       setIsGeneratingScript(false);
+      scriptAbortControllerRef.current = null;
     }
   };
 
   const generateAudio = async () => {
     if (script.length === 0) return;
 
+    const controller = new AbortController();
+    audioAbortControllerRef.current = controller;
     setIsGeneratingAudio(true);
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
@@ -125,10 +140,12 @@ export default function App() {
       const response = await fetch('/api/dub', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           script,
           character1,
           character2,
+          preset,
         }),
       });
       if (!response.ok) {
@@ -140,12 +157,25 @@ export default function App() {
       setAudioUrl(url);
       setStatusLog('Áudio gerado com sucesso! Clique no play para ouvir.');
     } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        setStatusLog('Geracao de audio cancelada pelo usuario.');
+        return;
+      }
       console.error("Erro ao gerar áudio:", error);
       setStatusLog(`Erro no áudio: ${error.message}`);
       alert(`Falha ao gerar o áudio: ${error.message}`);
     } finally {
       setIsGeneratingAudio(false);
+      audioAbortControllerRef.current = null;
     }
+  };
+
+  const cancelScriptGeneration = () => {
+    scriptAbortControllerRef.current?.abort();
+  };
+
+  const cancelAudioGeneration = () => {
+    audioAbortControllerRef.current?.abort();
   };
 
   const togglePlayback = () => {
@@ -216,6 +246,20 @@ export default function App() {
               <div className="flex items-center gap-2 mb-6 text-indigo-600">
                 <Settings2 className="w-5 h-5" />
                 <h2 className="font-semibold">Configuração de Voz</h2>
+              </div>
+              <div className="mb-6">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Preset de Geracao
+                </label>
+                <select
+                  value={preset}
+                  onChange={(e) => setPreset(e.target.value as GenerationPreset)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                >
+                  <option value="fast">Rapido</option>
+                  <option value="natural">Natural</option>
+                  <option value="cinematic">Cinematico</option>
+                </select>
               </div>
 
               {/* Character 1 */}
@@ -338,6 +382,14 @@ export default function App() {
                     </>
                   )}
                 </button>
+                {isGeneratingScript && (
+                  <button
+                    onClick={cancelScriptGeneration}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 rounded-xl font-medium transition-all min-w-[90px]"
+                  >
+                    Cancelar
+                  </button>
+                )}
               </div>
             </section>
 
@@ -437,6 +489,14 @@ export default function App() {
                       </>
                     )}
                   </button>
+                  {isGeneratingAudio && (
+                    <button
+                      onClick={cancelAudioGeneration}
+                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-semibold transition-all"
+                    >
+                      Cancelar
+                    </button>
+                  )}
                   {audioUrl && (
                     <a 
                       href={audioUrl} 

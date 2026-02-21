@@ -1,5 +1,5 @@
 import express from 'express';
-import { generateDialogueScript, type Character, type DialogueLine } from './services/ollama';
+import { generateDialogueScript, type Character, type DialogueLine, type GenerationPreset } from './services/ollama';
 import { synthesizeDialogueWav } from './services/tts';
 
 const app = express();
@@ -13,17 +13,18 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/script', async (req, res) => {
   try {
-    const { prompt, character1, character2 } = req.body as {
+    const { prompt, character1, character2, preset } = req.body as {
       prompt?: string;
       character1?: Character;
       character2?: Character;
+      preset?: GenerationPreset;
     };
 
     if (!prompt?.trim() || !character1?.name || !character2?.name) {
       return res.status(400).json({ error: 'Payload invalido para geracao de roteiro.' });
     }
 
-    const script = await generateDialogueScript({ prompt, character1, character2 });
+    const script = await generateDialogueScript({ prompt, character1, character2, preset });
     return res.json({ script });
   } catch (error: any) {
     const message = error?.message || 'Erro desconhecido ao gerar roteiro.';
@@ -33,17 +34,21 @@ app.post('/api/script', async (req, res) => {
 
 app.post('/api/dub', async (req, res) => {
   try {
-    const { script, character1, character2 } = req.body as {
+    const { script, character1, character2, preset } = req.body as {
       script?: DialogueLine[];
       character1?: Character;
       character2?: Character;
+      preset?: GenerationPreset;
     };
 
     if (!Array.isArray(script) || script.length === 0) {
       return res.status(400).json({ error: 'Roteiro vazio para dublagem.' });
     }
+    if (!character1?.name || !character2?.name) {
+      return res.status(400).json({ error: 'Personagens invalidos para dublagem.' });
+    }
 
-    const wavBuffer = await synthesizeDialogueWav({ script, character1, character2 });
+    const wavBuffer = await synthesizeDialogueWav({ script, character1, character2, preset });
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader('Content-Disposition', 'inline; filename="dublagem.wav"');
     return res.send(wavBuffer);
