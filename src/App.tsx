@@ -18,7 +18,9 @@ import {
   Volume2,
   Download,
   Plus,
-  Trash2
+  Trash2,
+  Moon,
+  Sun
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -47,6 +49,7 @@ interface DialogueLine {
 }
 
 export default function App() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [character1, setCharacter1] = useState<Character>({
     name: 'Personagem 1',
     voice: 'Kore',
@@ -70,6 +73,16 @@ export default function App() {
   const [statusLog, setStatusLog] = useState<string>('');
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setIsDarkMode(savedTheme ? savedTheme === 'dark' : prefersDark);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   // Helper to convert PCM to WAV
   const pcmToWav = (pcmBase64: string, sampleRate: number = 24000): string => {
@@ -255,7 +268,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] text-slate-900 font-sans p-4 md:p-8">
+    <div className={`min-h-screen bg-[#f5f5f5] text-slate-900 font-sans p-4 md:p-8 ${isDarkMode ? 'dark-theme' : ''}`}>
       <div className="max-w-5xl mx-auto space-y-8">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-slate-200 pb-6">
@@ -268,9 +281,19 @@ export default function App() {
               <p className="text-slate-500 text-sm">Dublagem com IA e Personalidade</p>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-4 text-xs font-mono text-slate-400 uppercase tracking-widest">
-            <span>Status: Ready</span>
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsDarkMode((current) => !current)}
+              className="w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center"
+              title={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
+              aria-label={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <div className="hidden md:flex items-center gap-4 text-xs font-mono text-slate-400 uppercase tracking-widest">
+              <span>Status: Ready</span>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
           </div>
         </header>
 
@@ -546,6 +569,77 @@ export default function App() {
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: #cbd5e1;
+        }
+
+        .dark-theme {
+          background: #0f172a;
+          color: #e2e8f0;
+        }
+
+        .dark-theme header {
+          border-color: #334155;
+        }
+
+        .dark-theme section {
+          background: #111827;
+          border-color: #1f2937;
+          box-shadow: none;
+        }
+
+        .dark-theme .bg-slate-50,
+        .dark-theme .bg-white {
+          background: #0f172a !important;
+        }
+
+        .dark-theme .hover\\:bg-slate-50:hover {
+          background: #1e293b !important;
+        }
+
+        .dark-theme .bg-indigo-50 {
+          background: #1e1b4b !important;
+        }
+
+        .dark-theme .border-slate-100,
+        .dark-theme .border-slate-200 {
+          border-color: #334155 !important;
+        }
+
+        .dark-theme .text-slate-900,
+        .dark-theme .text-slate-700,
+        .dark-theme .text-slate-600,
+        .dark-theme .text-slate-500,
+        .dark-theme .text-slate-400 {
+          color: #cbd5e1 !important;
+        }
+
+        .dark-theme .text-white {
+          color: #f8fafc !important;
+        }
+
+        .dark-theme input,
+        .dark-theme select,
+        .dark-theme textarea {
+          background: #0b1220 !important;
+          border-color: #334155 !important;
+          color: #e2e8f0 !important;
+        }
+
+        .dark-theme input::placeholder,
+        .dark-theme textarea::placeholder {
+          color: #94a3b8;
+        }
+
+        .dark-theme button:disabled {
+          background: #334155 !important;
+          color: #94a3b8 !important;
+          border-color: #475569 !important;
+          cursor: not-allowed;
+        }
+
+        .dark-theme a.bg-white {
+          background: #1e293b !important;
+          color: #e2e8f0 !important;
+          border-color: #334155 !important;
         }
       `}</style>
     </div>

@@ -8,3 +8,8 @@ alwaysApply: true
 - Use sempre `yarn` em vez de `npm`.
 - Para instalar dependencias, prefira `yarn add` e `yarn remove`.
 - Para executar scripts, prefira `yarn <script>`.
+
+# Ajustes visuais
+- Sempre verifique as cores dos textos e background para garantir que não fiquem com tons próximos, fazendo com que as letras sumam.
+
+- Sempre mantenha a documentação atualizada.
