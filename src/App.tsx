@@ -21,7 +21,50 @@ import {
   Moon
 } from 'lucide-react';
 
-const VOICES = ['Faber', 'Edresson', 'Amy', 'Kathleen'];
+interface VoiceOption {
+  value: string;
+  label: string;
+  language: string;
+  gender: 'Feminina' | 'Masculina';
+}
+
+const VOICE_OPTIONS: VoiceOption[] = [
+  // Portugues (Brasil)
+  { value: 'pt_BR-faber-medium', label: 'Faber', language: 'Português (Brasil)', gender: 'Masculina' },
+  { value: 'pt_BR-edresson-low', label: 'Edresson', language: 'Português (Brasil)', gender: 'Masculina' },
+  { value: 'pt_BR-maria-medium', label: 'Maria', language: 'Português (Brasil)', gender: 'Feminina' },
+  { value: 'pt_BR-talita-medium', label: 'Talita', language: 'Português (Brasil)', gender: 'Feminina' },
+  // Portugues (Portugal)
+  { value: 'pt_PT-duarte-medium', label: 'Duarte', language: 'Português (Portugal)', gender: 'Masculina' },
+  { value: 'pt_PT-tugao-medium', label: 'Tugão', language: 'Português (Portugal)', gender: 'Masculina' },
+  { value: 'pt_PT-joana-medium', label: 'Joana', language: 'Português (Portugal)', gender: 'Feminina' },
+  { value: 'pt_PT-beatriz-medium', label: 'Beatriz', language: 'Português (Portugal)', gender: 'Feminina' },
+  // Ingles (Britanico)
+  { value: 'en_GB-alan-medium', label: 'Alan', language: 'Inglês (Britânico)', gender: 'Masculina' },
+  { value: 'en_GB-northern_english_male-medium', label: 'Northern Male', language: 'Inglês (Britânico)', gender: 'Masculina' },
+  { value: 'en_GB-cori-medium', label: 'Cori', language: 'Inglês (Britânico)', gender: 'Feminina' },
+  { value: 'en_GB-southern_english_female-low', label: 'Southern Female', language: 'Inglês (Britânico)', gender: 'Feminina' },
+  // Ingles (US)
+  { value: 'en_US-ryan-high', label: 'Ryan', language: 'Inglês (US)', gender: 'Masculina' },
+  { value: 'en_US-joe-medium', label: 'Joe', language: 'Inglês (US)', gender: 'Masculina' },
+  { value: 'en_US-amy-medium', label: 'Amy', language: 'Inglês (US)', gender: 'Feminina' },
+  { value: 'en_US-kathleen-low', label: 'Kathleen', language: 'Inglês (US)', gender: 'Feminina' },
+  // Japones
+  { value: 'ja_JP-hiroshi-medium', label: 'Hiroshi', language: 'Japonês', gender: 'Masculina' },
+  { value: 'ja_JP-kenta-medium', label: 'Kenta', language: 'Japonês', gender: 'Masculina' },
+  { value: 'ja_JP-kokoro-medium', label: 'Kokoro', language: 'Japonês', gender: 'Feminina' },
+  { value: 'ja_JP-haruka-medium', label: 'Haruka', language: 'Japonês', gender: 'Feminina' },
+  // Frances
+  { value: 'fr_FR-tom-medium', label: 'Tom', language: 'Francês', gender: 'Masculina' },
+  { value: 'fr_FR-gilles-low', label: 'Gilles', language: 'Francês', gender: 'Masculina' },
+  { value: 'fr_FR-siwis-medium', label: 'Siwis', language: 'Francês', gender: 'Feminina' },
+  { value: 'fr_FR-mls-medium', label: 'MLS', language: 'Francês', gender: 'Feminina' },
+  // Espanhol
+  { value: 'es_ES-carlfm-x_low', label: 'CarlFM', language: 'Espanhol', gender: 'Masculina' },
+  { value: 'es_ES-davefx-medium', label: 'DaveFX', language: 'Espanhol', gender: 'Masculina' },
+  { value: 'es_ES-sharvard-medium', label: 'Sharvard', language: 'Espanhol', gender: 'Feminina' },
+  { value: 'es_MX-claudia-medium', label: 'Claudia', language: 'Espanhol', gender: 'Feminina' },
+];
 type GenerationPreset = 'fast' | 'natural' | 'cinematic';
 
 interface Character {
@@ -59,17 +102,19 @@ export default function App() {
   const [systemPrefersDark, setSystemPrefersDark] = useState(false);
   const [character1, setCharacter1] = useState<Character>({
     name: 'Personagem 1',
-    voice: 'Faber',
+    voice: 'pt_BR-faber-medium',
     accent: 'Francês',
     emotion: 'Calmo'
   });
 
   const [character2, setCharacter2] = useState<Character>({
     name: 'Personagem 2',
-    voice: 'Amy',
+    voice: 'en_US-amy-medium',
     accent: 'Paulista',
     emotion: 'Entusiasmado'
   });
+  const [voiceSearch1, setVoiceSearch1] = useState('');
+  const [voiceSearch2, setVoiceSearch2] = useState('');
 
   const [prompt, setPrompt] = useState('');
   const [script, setScript] = useState<DialogueLine[]>(INITIAL_DIALOGUE);
@@ -87,6 +132,17 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const scriptAbortControllerRef = useRef<AbortController | null>(null);
   const audioAbortControllerRef = useRef<AbortController | null>(null);
+
+  const filterVoiceOptions = (query: string): VoiceOption[] => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return VOICE_OPTIONS;
+    return VOICE_OPTIONS.filter((voice) =>
+      `${voice.label} ${voice.language} ${voice.gender} ${voice.value}`.toLowerCase().includes(normalized)
+    );
+  };
+
+  const filteredVoiceOptions1 = filterVoiceOptions(voiceSearch1);
+  const filteredVoiceOptions2 = filterVoiceOptions(voiceSearch2);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -427,12 +483,27 @@ export default function App() {
                     placeholder="Nome do Personagem"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
+                  <input
+                    type="text"
+                    value={voiceSearch1}
+                    onChange={(e) => setVoiceSearch1(e.target.value)}
+                    placeholder="Buscar voz por idioma, genero ou nome"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                  />
                   <select 
                     value={character1.voice}
                     onChange={(e) => setCharacter1({...character1, voice: e.target.value})}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                   >
-                    {VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                    {filteredVoiceOptions1.length === 0 ? (
+                      <option value={character1.voice}>Nenhuma voz encontrada</option>
+                    ) : (
+                      filteredVoiceOptions1.map((voice) => (
+                        <option key={voice.value} value={voice.value}>
+                          {`[${voice.language}] [${voice.gender}] ${voice.label}`}
+                        </option>
+                      ))
+                    )}
                   </select>
                   <div className="grid grid-cols-2 gap-2">
                     <input 
@@ -469,12 +540,27 @@ export default function App() {
                     placeholder="Nome do Personagem"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
+                  <input
+                    type="text"
+                    value={voiceSearch2}
+                    onChange={(e) => setVoiceSearch2(e.target.value)}
+                    placeholder="Buscar voz por idioma, genero ou nome"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                  />
                   <select 
                     value={character2.voice}
                     onChange={(e) => setCharacter2({...character2, voice: e.target.value})}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                   >
-                    {VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                    {filteredVoiceOptions2.length === 0 ? (
+                      <option value={character2.voice}>Nenhuma voz encontrada</option>
+                    ) : (
+                      filteredVoiceOptions2.map((voice) => (
+                        <option key={voice.value} value={voice.value}>
+                          {`[${voice.language}] [${voice.gender}] ${voice.label}`}
+                        </option>
+                      ))
+                    )}
                   </select>
                   <div className="grid grid-cols-2 gap-2">
                     <input 

@@ -57,6 +57,8 @@ Cada preset atua em todo o pipeline:
 - `Edresson`: voz recomendada para personagem 2.
 - `Amy`: opcao feminina adicional.
 - `Kathleen`: opcao feminina adicional.
+- O seletor de voz no front agora mostra tags de idioma e genero e inclui busca.
+- Idiomas adicionados no seletor: Português (Brasil), Português (Portugal), Inglês (Britânico), Inglês (US), Japonês, Francês e Espanhol.
 
 As vozes podem ser personalizadas via variaveis `PIPER_*` no `.env.local`.
 

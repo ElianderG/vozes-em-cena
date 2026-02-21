@@ -57,7 +57,15 @@ function sanitizeLine(line: DialogueLine): string {
 }
 
 function getCharacterModel(character: Character): string {
-  const voice = String(character.voice || '').toLowerCase();
+  const rawVoice = String(character.voice || '').trim();
+  if (rawVoice) {
+    const inferredPath = rawVoice.endsWith('.onnx')
+      ? (rawVoice.startsWith('/') ? rawVoice : join(PIPER_VOICES_DIR, rawVoice))
+      : join(PIPER_VOICES_DIR, `${rawVoice}.onnx`);
+    if (existsSync(inferredPath)) return inferredPath;
+  }
+
+  const voice = rawVoice.toLowerCase();
   if (voice.includes('kathleen') && existsSync(PIPER_VOICE_KATHLEEN_MODEL)) return PIPER_VOICE_KATHLEEN_MODEL;
   if (voice.includes('amy') && existsSync(PIPER_VOICE_AMY_MODEL)) return PIPER_VOICE_AMY_MODEL;
   if (voice.includes('edresson') && existsSync(PIPER_VOICE_EDRESSON_MODEL)) return PIPER_VOICE_EDRESSON_MODEL;
