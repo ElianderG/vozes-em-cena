@@ -1,0 +1,10 @@
+---
+description: Padrao de gerenciador de pacotes do projeto
+alwaysApply: true
+---
+
+# Gerenciador de Pacotes
+
+- Use sempre `yarn` em vez de `npm`.
+- Para instalar dependencias, prefira `yarn add` e `yarn remove`.
+- Para executar scripts, prefira `yarn <script>`.
