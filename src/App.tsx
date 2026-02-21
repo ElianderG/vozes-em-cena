@@ -30,40 +30,40 @@ interface VoiceOption {
 
 const VOICE_OPTIONS: VoiceOption[] = [
   // Portugues (Brasil)
-  { value: 'pt_BR-faber-medium', label: 'Faber', language: 'Português (Brasil)', gender: 'Masculina' },
-  { value: 'pt_BR-edresson-low', label: 'Edresson', language: 'Português (Brasil)', gender: 'Masculina' },
-  { value: 'pt_BR-maria-medium', label: 'Maria', language: 'Português (Brasil)', gender: 'Feminina' },
-  { value: 'pt_BR-talita-medium', label: 'Talita', language: 'Português (Brasil)', gender: 'Feminina' },
+  { value: 'piper:pt_BR-faber-medium', label: 'Faber', language: 'Português (Brasil)', gender: 'Masculina' },
+  { value: 'piper:pt_BR-edresson-low', label: 'Edresson', language: 'Português (Brasil)', gender: 'Masculina' },
+  { value: 'espeak:pt-br+f3', label: 'PT-BR Clara', language: 'Português (Brasil)', gender: 'Feminina' },
+  { value: 'espeak:pt-br+f4', label: 'PT-BR Suave', language: 'Português (Brasil)', gender: 'Feminina' },
   // Portugues (Portugal)
-  { value: 'pt_PT-duarte-medium', label: 'Duarte', language: 'Português (Portugal)', gender: 'Masculina' },
-  { value: 'pt_PT-tugao-medium', label: 'Tugão', language: 'Português (Portugal)', gender: 'Masculina' },
-  { value: 'pt_PT-joana-medium', label: 'Joana', language: 'Português (Portugal)', gender: 'Feminina' },
-  { value: 'pt_PT-beatriz-medium', label: 'Beatriz', language: 'Português (Portugal)', gender: 'Feminina' },
+  { value: 'espeak:pt-pt+m2', label: 'PT-PT Miguel', language: 'Português (Portugal)', gender: 'Masculina' },
+  { value: 'espeak:pt-pt+m3', label: 'PT-PT Vasco', language: 'Português (Portugal)', gender: 'Masculina' },
+  { value: 'espeak:pt-pt+f3', label: 'PT-PT Inês', language: 'Português (Portugal)', gender: 'Feminina' },
+  { value: 'espeak:pt-pt+f4', label: 'PT-PT Sofia', language: 'Português (Portugal)', gender: 'Feminina' },
   // Ingles (Britanico)
-  { value: 'en_GB-alan-medium', label: 'Alan', language: 'Inglês (Britânico)', gender: 'Masculina' },
-  { value: 'en_GB-northern_english_male-medium', label: 'Northern Male', language: 'Inglês (Britânico)', gender: 'Masculina' },
-  { value: 'en_GB-cori-medium', label: 'Cori', language: 'Inglês (Britânico)', gender: 'Feminina' },
-  { value: 'en_GB-southern_english_female-low', label: 'Southern Female', language: 'Inglês (Britânico)', gender: 'Feminina' },
+  { value: 'piper:en_GB-alan-medium', label: 'Alan', language: 'Inglês (Britânico)', gender: 'Masculina' },
+  { value: 'piper:en_GB-northern_english_male-medium', label: 'Northern Male', language: 'Inglês (Britânico)', gender: 'Masculina' },
+  { value: 'piper:en_GB-cori-medium', label: 'Cori', language: 'Inglês (Britânico)', gender: 'Feminina' },
+  { value: 'piper:en_GB-southern_english_female-low', label: 'Southern Female', language: 'Inglês (Britânico)', gender: 'Feminina' },
   // Ingles (US)
-  { value: 'en_US-ryan-high', label: 'Ryan', language: 'Inglês (US)', gender: 'Masculina' },
-  { value: 'en_US-joe-medium', label: 'Joe', language: 'Inglês (US)', gender: 'Masculina' },
-  { value: 'en_US-amy-medium', label: 'Amy', language: 'Inglês (US)', gender: 'Feminina' },
-  { value: 'en_US-kathleen-low', label: 'Kathleen', language: 'Inglês (US)', gender: 'Feminina' },
+  { value: 'piper:en_US-ryan-high', label: 'Ryan', language: 'Inglês (US)', gender: 'Masculina' },
+  { value: 'piper:en_US-joe-medium', label: 'Joe', language: 'Inglês (US)', gender: 'Masculina' },
+  { value: 'piper:en_US-amy-medium', label: 'Amy', language: 'Inglês (US)', gender: 'Feminina' },
+  { value: 'piper:en_US-kathleen-low', label: 'Kathleen', language: 'Inglês (US)', gender: 'Feminina' },
   // Japones
-  { value: 'ja_JP-hiroshi-medium', label: 'Hiroshi', language: 'Japonês', gender: 'Masculina' },
-  { value: 'ja_JP-kenta-medium', label: 'Kenta', language: 'Japonês', gender: 'Masculina' },
-  { value: 'ja_JP-kokoro-medium', label: 'Kokoro', language: 'Japonês', gender: 'Feminina' },
-  { value: 'ja_JP-haruka-medium', label: 'Haruka', language: 'Japonês', gender: 'Feminina' },
+  { value: 'espeak:ja+m3', label: 'JP Kenji', language: 'Japonês', gender: 'Masculina' },
+  { value: 'espeak:ja+m4', label: 'JP Daichi', language: 'Japonês', gender: 'Masculina' },
+  { value: 'espeak:ja+f3', label: 'JP Yuki', language: 'Japonês', gender: 'Feminina' },
+  { value: 'espeak:ja+f4', label: 'JP Hana', language: 'Japonês', gender: 'Feminina' },
   // Frances
-  { value: 'fr_FR-tom-medium', label: 'Tom', language: 'Francês', gender: 'Masculina' },
-  { value: 'fr_FR-gilles-low', label: 'Gilles', language: 'Francês', gender: 'Masculina' },
-  { value: 'fr_FR-siwis-medium', label: 'Siwis', language: 'Francês', gender: 'Feminina' },
-  { value: 'fr_FR-mls-medium', label: 'MLS', language: 'Francês', gender: 'Feminina' },
+  { value: 'piper:fr_FR-tom-medium', label: 'Tom', language: 'Francês', gender: 'Masculina' },
+  { value: 'piper:fr_FR-gilles-low', label: 'Gilles', language: 'Francês', gender: 'Masculina' },
+  { value: 'piper:fr_FR-siwis-medium', label: 'Siwis', language: 'Francês', gender: 'Feminina' },
+  { value: 'espeak:fr+f3', label: 'FR Claire', language: 'Francês', gender: 'Feminina' },
   // Espanhol
-  { value: 'es_ES-carlfm-x_low', label: 'CarlFM', language: 'Espanhol', gender: 'Masculina' },
-  { value: 'es_ES-davefx-medium', label: 'DaveFX', language: 'Espanhol', gender: 'Masculina' },
-  { value: 'es_ES-sharvard-medium', label: 'Sharvard', language: 'Espanhol', gender: 'Feminina' },
-  { value: 'es_MX-claudia-medium', label: 'Claudia', language: 'Espanhol', gender: 'Feminina' },
+  { value: 'piper:es_ES-carlfm-x_low', label: 'CarlFM', language: 'Espanhol', gender: 'Masculina' },
+  { value: 'piper:es_ES-davefx-medium', label: 'DaveFX', language: 'Espanhol', gender: 'Masculina' },
+  { value: 'piper:es_ES-sharvard-medium', label: 'Sharvard', language: 'Espanhol', gender: 'Feminina' },
+  { value: 'piper:es_AR-daniela-high', label: 'Daniela', language: 'Espanhol', gender: 'Feminina' },
 ];
 type GenerationPreset = 'fast' | 'natural' | 'cinematic';
 
@@ -102,14 +102,14 @@ export default function App() {
   const [systemPrefersDark, setSystemPrefersDark] = useState(false);
   const [character1, setCharacter1] = useState<Character>({
     name: 'Personagem 1',
-    voice: 'pt_BR-faber-medium',
+    voice: 'piper:pt_BR-faber-medium',
     accent: 'Francês',
     emotion: 'Calmo'
   });
 
   const [character2, setCharacter2] = useState<Character>({
     name: 'Personagem 2',
-    voice: 'en_US-amy-medium',
+    voice: 'piper:en_US-amy-medium',
     accent: 'Paulista',
     emotion: 'Entusiasmado'
   });

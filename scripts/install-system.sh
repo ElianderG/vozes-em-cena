@@ -70,7 +70,7 @@ install_base_packages() {
   safe_apt_update
 
   log "Instalando pacotes base"
-  sudo apt-get install -y curl ca-certificates
+  sudo apt-get install -y curl ca-certificates espeak-ng
 }
 
 install_node_if_missing() {
@@ -219,28 +219,70 @@ download_if_missing_optional() {
   fi
 }
 
+download_piper_voice_by_id() {
+  local voice_id="$1"
+  local locale quality voice_name lang_code base_url output_model
+
+  locale="${voice_id%%-*}"
+  quality="${voice_id##*-}"
+  voice_name="${voice_id%-$quality}"
+  voice_name="${voice_name#${locale}-}"
+  lang_code="$(echo "${locale}" | cut -d '_' -f 1 | tr '[:upper:]' '[:lower:]')"
+
+  base_url="https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/${lang_code}/${locale}/${voice_name}/${quality}/${voice_id}.onnx"
+  output_model="$(resolve_project_path "${PIPER_VOICES_DIR}/${voice_id}.onnx")"
+
+  if [ ! -f "${output_model}" ]; then
+    log "Baixando arquivo: $(basename "${output_model}")"
+    if ! curl -fL "${base_url}" -o "${output_model}"; then
+      if ! curl -fL "${base_url}?download=true" -o "${output_model}"; then
+        echo "Erro: nao foi possivel baixar modelo Piper ${voice_id}"
+        exit 1
+      fi
+    fi
+  fi
+
+  if [ ! -f "${output_model}.json" ]; then
+    log "Baixando arquivo: $(basename "${output_model}.json")"
+    if ! curl -fL "${base_url}.json" -o "${output_model}.json"; then
+      if ! curl -fL "${base_url}.json?download=true" -o "${output_model}.json"; then
+        echo "Aviso: nao foi possivel baixar ${voice_id}.onnx.json. Continuando instalacao."
+        rm -f "${output_model}.json"
+      fi
+    fi
+  fi
+}
+
 install_piper_voices() {
   local voices_dir
   voices_dir="$(resolve_project_path "${PIPER_VOICES_DIR}")"
   mkdir -p "${voices_dir}"
 
-  local faber_model
-  local edresson_model
-  local amy_model
-  local kathleen_model
-  faber_model="$(resolve_project_path "${PIPER_VOICE_FABER_MODEL}")"
-  edresson_model="$(resolve_project_path "${PIPER_VOICE_EDRESSON_MODEL}")"
-  amy_model="$(resolve_project_path "${PIPER_VOICE_AMY_MODEL}")"
-  kathleen_model="$(resolve_project_path "${PIPER_VOICE_KATHLEEN_MODEL}")"
+  # Curadoria de vozes para o modo hibrido (Piper + eSpeak)
+  # 4 vozes por idioma no front, com suporte via eSpeak quando Piper nao cobre bem.
+  local required_voice_ids=(
+    "pt_BR-faber-medium"
+    "pt_BR-edresson-low"
+    "en_GB-alan-medium"
+    "en_GB-northern_english_male-medium"
+    "en_GB-cori-medium"
+    "en_GB-southern_english_female-low"
+    "en_US-ryan-high"
+    "en_US-joe-medium"
+    "en_US-amy-medium"
+    "en_US-kathleen-low"
+    "fr_FR-tom-medium"
+    "fr_FR-gilles-low"
+    "fr_FR-siwis-medium"
+    "es_ES-carlfm-x_low"
+    "es_ES-davefx-medium"
+    "es_ES-sharvard-medium"
+    "es_AR-daniela-high"
+  )
 
-  download_if_missing "${PIPER_FABER_URL}" "${faber_model}"
-  download_if_missing "${PIPER_FABER_JSON_URL}" "${faber_model}.json"
-  download_if_missing "${PIPER_EDRESSON_URL}" "${edresson_model}"
-  download_if_missing "${PIPER_EDRESSON_JSON_URL}" "${edresson_model}.json"
-  download_if_missing_optional "${PIPER_AMY_URL}" "${amy_model}"
-  download_if_missing_optional "${PIPER_AMY_JSON_URL}" "${amy_model}.json"
-  download_if_missing_optional "${PIPER_KATHLEEN_URL}" "${kathleen_model}"
-  download_if_missing_optional "${PIPER_KATHLEEN_JSON_URL}" "${kathleen_model}.json"
+  for voice_id in "${required_voice_ids[@]}"; do
+    download_piper_voice_by_id "${voice_id}"
+  done
 }
 
 install_project_dependencies() {

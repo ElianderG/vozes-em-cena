@@ -70,13 +70,26 @@ function fallbackDialogue(input: GenerateDialogueInput): DialogueLine[] {
 function extractJsonArray(raw: string): DialogueLine[] | null {
   const trimmed = raw.trim();
   const attempts: string[] = [trimmed];
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) attempts.push(fenced[1].trim());
   const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
-  if (arrayMatch) attempts.push(arrayMatch[0]);
+  if (arrayMatch?.[0]) attempts.push(arrayMatch[0]);
+  const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (objectMatch?.[0]) attempts.push(objectMatch[0]);
 
   for (const candidate of attempts) {
     try {
       const parsed = JSON.parse(candidate);
       if (Array.isArray(parsed)) return parsed as DialogueLine[];
+      if (parsed && typeof parsed === 'object') {
+        const maybeArray =
+          (parsed as any).script ||
+          (parsed as any).dialogue ||
+          (parsed as any).lines ||
+          (parsed as any).conversa ||
+          (parsed as any).falas;
+        if (Array.isArray(maybeArray)) return maybeArray as DialogueLine[];
+      }
     } catch {
       // ignora tentativa invalida e continua
     }
@@ -157,7 +170,6 @@ Formato obrigatorio:
       model: presetConfig.model,
       prompt,
       stream: false,
-      format: 'json',
       options: {
         temperature: presetConfig.temperature,
         top_p: presetConfig.topP,

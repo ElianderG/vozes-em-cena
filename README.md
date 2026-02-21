@@ -59,6 +59,7 @@ Cada preset atua em todo o pipeline:
 - `Kathleen`: opcao feminina adicional.
 - O seletor de voz no front agora mostra tags de idioma e genero e inclui busca.
 - Idiomas adicionados no seletor: Português (Brasil), Português (Portugal), Inglês (Britânico), Inglês (US), Japonês, Francês e Espanhol.
+- O sistema usa modo **hibrido** de TTS: Piper (principal) + eSpeak (complementar para ampliar cobertura de idioma/genero).
 
 As vozes podem ser personalizadas via variaveis `PIPER_*` no `.env.local`.
 

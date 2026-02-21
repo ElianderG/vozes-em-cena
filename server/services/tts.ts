@@ -14,6 +14,7 @@ interface SynthesizeInput {
 }
 
 const PIPER_BIN = process.env.PIPER_BIN || 'piper';
+const ESPEAK_BIN = process.env.ESPEAK_BIN || 'espeak-ng';
 const PIPER_VOICES_DIR = process.env.PIPER_VOICES_DIR || './models/piper';
 const PIPER_VOICE_DEFAULT_MODEL =
   process.env.PIPER_VOICE_DEFAULT_MODEL || join(PIPER_VOICES_DIR, 'pt_BR-faber-medium.onnx');
@@ -51,13 +52,30 @@ export interface TtsOptions {
   character2?: CharacterVoiceOptions;
 }
 
+interface VoiceSelection {
+  engine: 'piper' | 'espeak';
+  voiceId: string;
+}
+
 function sanitizeLine(line: DialogueLine): string {
   const raw = typeof line.text === 'string' ? line.text.trim() : '';
   return raw.replace(/\s+/g, ' ').replace(/\[(.*?)\]|\((.*?)\)/g, '').trim();
 }
 
-function getCharacterModel(character: Character): string {
+function parseVoiceSelection(character: Character): VoiceSelection {
   const rawVoice = String(character.voice || '').trim();
+  if (rawVoice.includes(':')) {
+    const [engine, ...rest] = rawVoice.split(':');
+    const voiceId = rest.join(':').trim();
+    if (engine === 'espeak' && voiceId) return { engine: 'espeak', voiceId };
+    if (engine === 'piper' && voiceId) return { engine: 'piper', voiceId };
+  }
+  return { engine: 'piper', voiceId: rawVoice };
+}
+
+function getCharacterModel(character: Character): string {
+  const { voiceId } = parseVoiceSelection(character);
+  const rawVoice = voiceId;
   if (rawVoice) {
     const inferredPath = rawVoice.endsWith('.onnx')
       ? (rawVoice.startsWith('/') ? rawVoice : join(PIPER_VOICES_DIR, rawVoice))
@@ -118,6 +136,39 @@ function runPiperToWav(
   });
 }
 
+function runEspeakToWav(
+  text: string,
+  voiceId: string,
+  outFile: string,
+  config: { lengthScale: number }
+): Promise<void> {
+  const speed = clamp(Math.round(170 / Math.max(0.5, config.lengthScale)), 110, 300);
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      ESPEAK_BIN,
+      ['-v', voiceId || 'pt-br', '-s', String(speed), '-w', outFile, text],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', (error) => {
+      reject(new Error(`Nao foi possivel iniciar o eSpeak (${ESPEAK_BIN}): ${error.message}`));
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`Falha no eSpeak (codigo ${code}). ${stderr.trim()}`));
+    });
+  });
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -172,6 +223,47 @@ function buildWavFile(sampleRate: number, channels: number, bitsPerSample: numbe
   return Buffer.concat([header, pcmData]);
 }
 
+function resamplePcm16Mono(input: Buffer, fromRate: number, toRate: number): Buffer {
+  if (fromRate === toRate) return input;
+  const inputSamples = input.length / 2;
+  if (!Number.isFinite(inputSamples) || inputSamples <= 1) return input;
+
+  const outputSamples = Math.max(1, Math.round((inputSamples * toRate) / fromRate));
+  const output = Buffer.alloc(outputSamples * 2);
+
+  for (let i = 0; i < outputSamples; i++) {
+    const position = (i * (inputSamples - 1)) / Math.max(1, outputSamples - 1);
+    const leftIndex = Math.floor(position);
+    const rightIndex = Math.min(inputSamples - 1, leftIndex + 1);
+    const fraction = position - leftIndex;
+
+    const left = input.readInt16LE(leftIndex * 2);
+    const right = input.readInt16LE(rightIndex * 2);
+    const mixed = Math.round(left + (right - left) * fraction);
+    output.writeInt16LE(mixed, i * 2);
+  }
+
+  return output;
+}
+
+function adaptWavDataToFormat(
+  source: WavData,
+  target: Pick<WavData, 'sampleRate' | 'channels' | 'bitsPerSample'>
+): WavData | null {
+  if (source.channels === target.channels && source.bitsPerSample === target.bitsPerSample) {
+    if (source.sampleRate === target.sampleRate) return source;
+    if (source.channels === 1 && source.bitsPerSample === 16) {
+      return {
+        sampleRate: target.sampleRate,
+        channels: target.channels,
+        bitsPerSample: target.bitsPerSample,
+        pcmData: resamplePcm16Mono(source.pcmData, source.sampleRate, target.sampleRate),
+      };
+    }
+  }
+  return null;
+}
+
 export async function synthesizeDialogueWav({
   script,
   character1,
@@ -194,52 +286,75 @@ export async function synthesizeDialogueWav({
   const voiceConfig2 = mergeVoiceConfig(preset, ttsOptions?.character2);
   const parts: Buffer[] = [];
   let audioFormat: Pick<WavData, 'sampleRate' | 'channels' | 'bitsPerSample'> | null = null;
-  const baseModelPath = getCharacterModel(character1);
+  const baseVoiceSelection = parseVoiceSelection(character1);
+
+  const synthesizeLine = async (
+    text: string,
+    character: Character,
+    config: { lengthScale: number; noiseScale: number; noiseW: number },
+    outFile: string
+  ) => {
+    const selection = parseVoiceSelection(character);
+    if (selection.engine === 'espeak') {
+      await runEspeakToWav(text, selection.voiceId, outFile, config);
+      return;
+    }
+    const modelPath = getCharacterModel(character);
+    await runPiperToWav(text, modelPath, outFile, config);
+  };
 
   try {
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
       const speaker = line.characterName === character2.name ? character2 : character1;
-      const modelPath = getCharacterModel(speaker);
       const voiceConfig = line.characterName === character2.name ? voiceConfig2 : voiceConfig1;
       const partPath = join(tempDir, `line-${index}.wav`);
-      await runPiperToWav(line.text, modelPath, partPath, voiceConfig);
+      await synthesizeLine(line.text, speaker, voiceConfig, partPath);
       const wavData = readWavData(await readFile(partPath));
 
       if (!audioFormat) {
         audioFormat = wavData;
       } else {
-        const mismatch =
-          audioFormat.sampleRate !== wavData.sampleRate ||
-          audioFormat.channels !== wavData.channels ||
-          audioFormat.bitsPerSample !== wavData.bitsPerSample;
-        if (mismatch) {
-          // Fallback automatico para evitar quebrar a geracao
-          // quando as vozes usam formatos diferentes.
-          await runPiperToWav(line.text, baseModelPath, partPath, voiceConfig1);
-          const fallbackWavData = readWavData(await readFile(partPath));
-          const fallbackMismatch =
-            audioFormat.sampleRate !== fallbackWavData.sampleRate ||
-            audioFormat.channels !== fallbackWavData.channels ||
-            audioFormat.bitsPerSample !== fallbackWavData.bitsPerSample;
-          if (fallbackMismatch) {
-            throw new Error(
-              'Falha ao compatibilizar formatos de voz no Piper. Configure vozes com o mesmo formato de audio.'
-            );
-          }
-          parts.push(fallbackWavData.pcmData);
+        const adapted = adaptWavDataToFormat(wavData, audioFormat);
+        if (adapted) {
+          parts.push(adapted.pcmData);
           if (index < lines.length - 1) {
             parts.push(
               createSilence(
-                fallbackWavData.sampleRate,
-                fallbackWavData.channels,
-                fallbackWavData.bitsPerSample,
+                adapted.sampleRate,
+                adapted.channels,
+                adapted.bitsPerSample,
                 pauseMs
               )
             );
           }
           continue;
         }
+        // Fallback de compatibilidade mantendo o personagem atual, sem trocar de voz para personagem 1.
+        if (parseVoiceSelection(speaker).engine === 'espeak') {
+          await runEspeakToWav(line.text, parseVoiceSelection(speaker).voiceId, partPath, voiceConfig);
+        } else {
+          await runEspeakToWav(line.text, 'pt-br', partPath, voiceConfig);
+        }
+        const fallbackWavData = readWavData(await readFile(partPath));
+        const fallbackAdapted = adaptWavDataToFormat(fallbackWavData, audioFormat);
+        if (!fallbackAdapted) {
+          throw new Error(
+            'Falha ao compatibilizar formatos de voz. Tente vozes do mesmo idioma/engine ou ajuste para preset Natural.'
+          );
+        }
+        parts.push(fallbackAdapted.pcmData);
+        if (index < lines.length - 1) {
+          parts.push(
+            createSilence(
+              fallbackAdapted.sampleRate,
+              fallbackAdapted.channels,
+              fallbackAdapted.bitsPerSample,
+              pauseMs
+            )
+          );
+        }
+        continue;
       }
 
       parts.push(wavData.pcmData);
@@ -260,7 +375,7 @@ export async function synthesizeDialogueWav({
   } catch (error: any) {
     if (String(error?.message || '').includes('ENOENT')) {
       throw new Error(
-        'Piper nao encontrado. Instale e configure o Piper para habilitar TTS local.'
+        'Motor de voz nao encontrado. Verifique Piper/eSpeak instalados e configurados.'
       );
     }
     throw error;
