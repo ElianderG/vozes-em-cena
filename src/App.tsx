@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
 import { 
   Mic2, 
   Play, 
@@ -19,22 +18,12 @@ import {
   Download,
   Plus,
   Trash2,
-  Moon,
-  Sun
+  Moon
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 // Available voices for Gemini TTS
 const VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
-
-declare global {
-  interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
-  }
-}
 
 interface Character {
   name: string;
@@ -49,18 +38,19 @@ interface DialogueLine {
 }
 
 export default function App() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [themeMode, setThemeMode] = useState<'system' | 'light' | 'dark'>('system');
+  const [systemPrefersDark, setSystemPrefersDark] = useState(false);
   const [character1, setCharacter1] = useState<Character>({
     name: 'Personagem 1',
     voice: 'Kore',
-    accent: 'Paulista',
+    accent: 'Francês',
     emotion: 'Calmo'
   });
 
   const [character2, setCharacter2] = useState<Character>({
     name: 'Personagem 2',
-    voice: 'Puck',
-    accent: 'Carioca',
+    voice: 'Kore',
+    accent: 'Paulista',
     emotion: 'Entusiasmado'
   });
 
@@ -75,90 +65,45 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setIsDarkMode(savedTheme ? savedTheme === 'dark' : prefersDark);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const updateSystemTheme = (event?: MediaQueryListEvent) => {
+      setSystemPrefersDark(event ? event.matches : mediaQuery.matches);
+    };
+    updateSystemTheme();
+    mediaQuery.addEventListener('change', updateSystemTheme);
+    return () => mediaQuery.removeEventListener('change', updateSystemTheme);
   }, []);
 
+  const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && systemPrefersDark);
+
   useEffect(() => {
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
-
-  // Helper to convert PCM to WAV
-  const pcmToWav = (pcmBase64: string, sampleRate: number = 24000): string => {
-    const binaryString = window.atob(pcmBase64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    const wavHeader = new ArrayBuffer(44);
-    const view = new DataView(wavHeader);
-
-    // RIFF identifier
-    view.setUint32(0, 0x52494646, false); // "RIFF"
-    // file length
-    view.setUint32(4, 36 + len, true);
-    // RIFF type
-    view.setUint32(8, 0x57415645, false); // "WAVE"
-    // format chunk identifier
-    view.setUint32(12, 0x666d7420, false); // "fmt "
-    // format chunk length
-    view.setUint32(16, 16, true);
-    // sample format (raw)
-    view.setUint16(20, 1, true); // PCM
-    // channel count
-    view.setUint16(22, 1, true); // Mono
-    // sample rate
-    view.setUint32(24, sampleRate, true);
-    // byte rate (sample rate * block align)
-    view.setUint32(28, sampleRate * 2, true);
-    // block align (channel count * bytes per sample)
-    view.setUint16(32, 2, true);
-    // bits per sample
-    view.setUint16(34, 16, true);
-    // data chunk identifier
-    view.setUint32(36, 0x64617461, false); // "data"
-    // data chunk length
-    view.setUint32(40, len, true);
-
-    const blob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
-    return URL.createObjectURL(blob);
-  };
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
 
   const generateScript = async () => {
     if (!prompt.trim()) return;
     setIsGeneratingScript(true);
     setStatusLog('Gerando roteiro...');
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Crie um diálogo curto (máximo 6 falas) entre ${character1.name} e ${character2.name}.
-        Contexto: ${prompt}
-        
-        ${character1.name} tem sotaque ${character1.accent} e está ${character1.emotion}.
-        ${character2.name} tem sotaque ${character2.accent} e está ${character2.emotion}.
-        
-        Retorne APENAS um JSON no seguinte formato:
-        [
-          {"characterName": "${character1.name}", "text": "Fala"},
-          ...
-        ]`,
-        config: {
-          responseMimeType: "application/json"
-        }
+      const response = await fetch('/api/script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          character1,
+          character2,
+        }),
       });
-
-      const text = response.text;
-      if (text) {
-        const parsedScript = JSON.parse(text);
-        setScript(parsedScript);
-        setStatusLog('Roteiro gerado com sucesso!');
-      } else {
-        throw new Error('Resposta vazia do modelo.');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error || 'Falha na API local de roteiro.');
       }
+      const data = await response.json();
+      const parsedScript = Array.isArray(data?.script) ? data.script : [];
+      setScript(parsedScript);
+      setStatusLog('Roteiro gerado com sucesso!');
     } catch (error: any) {
       console.error("Erro ao gerar roteiro:", error);
       setStatusLog(`Erro no roteiro: ${error.message}`);
@@ -170,73 +115,34 @@ export default function App() {
 
   const generateAudio = async () => {
     if (script.length === 0) return;
-    
-    // Check for API key if needed (for preview models)
-    if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
-      setStatusLog('Por favor, selecione uma chave de API válida.');
-      await window.aistudio.openSelectKey();
-      return;
-    }
 
     setIsGeneratingAudio(true);
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
     setStatusLog('Gerando áudio dublado (isso pode levar alguns segundos)...');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const conversationText = script.map(line => `${line.characterName}: ${line.text}`).join('\n');
-      
-      const ttsPrompt = `TTS the following conversation between ${character1.name} and ${character2.name}. 
-      Apply the specified styles:
-      ${character1.name} has a ${character1.accent} accent and is feeling ${character1.emotion}.
-      ${character2.name} has a ${character2.accent} accent and is feeling ${character2.emotion}.
-
-      Conversation:
-      ${conversationText}`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: ttsPrompt }] }],
-        config: {
-          responseModalities: ['AUDIO' as any], // Using string to be safe
-          speechConfig: {
-            multiSpeakerVoiceConfig: {
-              speakerVoiceConfigs: [
-                {
-                  speaker: character1.name,
-                  voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: character1.voice as any }
-                  }
-                },
-                {
-                  speaker: character2.name,
-                  voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: character2.voice as any }
-                  }
-                }
-              ]
-            }
-          }
-        }
+      const response = await fetch('/api/dub', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script,
+          character1,
+          character2,
+        }),
       });
-
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64Audio) {
-        const url = pcmToWav(base64Audio);
-        setAudioUrl(url);
-        setStatusLog('Áudio gerado com sucesso! Clique no play para ouvir.');
-      } else {
-        throw new Error('Nenhum dado de áudio recebido. Verifique se o diálogo não é muito longo.');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error || 'Falha na API local de dublagem.');
       }
+      const audioBlob = await response.blob();
+      const url = URL.createObjectURL(audioBlob);
+      setAudioUrl(url);
+      setStatusLog('Áudio gerado com sucesso! Clique no play para ouvir.');
     } catch (error: any) {
       console.error("Erro ao gerar áudio:", error);
-      let errorMsg = error.message;
-      if (errorMsg.includes('Requested entity was not found')) {
-        errorMsg = 'Modelo não encontrado ou acesso negado. Tente selecionar sua chave de API novamente.';
-        if (window.aistudio) window.aistudio.openSelectKey();
-      }
-      setStatusLog(`Erro no áudio: ${errorMsg}`);
-      alert(`Falha ao gerar o áudio: ${errorMsg}`);
+      setStatusLog(`Erro no áudio: ${error.message}`);
+      alert(`Falha ao gerar o áudio: ${error.message}`);
     } finally {
       setIsGeneratingAudio(false);
     }
@@ -282,14 +188,20 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsDarkMode((current) => !current)}
-              className="w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center"
-              title={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
-              aria-label={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
-            >
-              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <Moon className="w-4 h-4 text-slate-600" />
+              <select
+                value={themeMode}
+                onChange={(e) => setThemeMode(e.target.value as 'system' | 'light' | 'dark')}
+                className="bg-transparent text-sm text-slate-700 focus:outline-none"
+                title="Selecionar tema"
+                aria-label="Selecionar tema"
+              >
+                <option value="system">Sistema</option>
+                <option value="light">Claro</option>
+                <option value="dark">Escuro</option>
+              </select>
+            </div>
             <div className="hidden md:flex items-center gap-4 text-xs font-mono text-slate-400 uppercase tracking-widest">
               <span>Status: Ready</span>
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -541,7 +453,7 @@ export default function App() {
         </main>
 
         <footer className="text-center text-slate-400 text-xs py-8">
-          <p>© 2026 Vozes em Cena • Powered by Gemini AI</p>
+          <p>© 2026 Vozes em Cena • IA Local</p>
         </footer>
       </div>
 
